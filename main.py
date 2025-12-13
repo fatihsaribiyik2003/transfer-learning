@@ -1,0 +1,99 @@
+import os
+import tensorflow as tf
+from tensorflow.keras import layers
+from tensorflow.keras.applications import VGG16
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# --- 1. AYARLAR ---
+TRAIN_DIR = './data/train'
+VALID_DIR = './data/valid'
+
+# Resimler 128x128 piksel boyutuna getirilecek (Hız için ideal)
+IMG_SIZE = (128, 128)
+BATCH_SIZE = 32
+
+print("\n🚀 Veriler yükleniyor...")
+
+# --- 2. VERİ YÜKLEME (DATA PIPELINE) ---
+# Eğitim verisi
+train_ds = tf.keras.utils.image_dataset_from_directory(
+    TRAIN_DIR,
+    image_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    label_mode='binary' # 0: Araba, 1: Kamyon (veya tam tersi)
+)
+
+# Doğrulama verisi
+val_ds = tf.keras.utils.image_dataset_from_directory(
+    VALID_DIR,
+    image_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    label_mode='binary'
+)
+
+# --- 3. MODELİ OLUŞTURMA (TRANSFER LEARNING) ---
+print("🧠 VGG16 Modeli hazırlanıyor...")
+
+# VGG16'nın sadece özellik çıkaran "Taban" kısmını alıyoruz
+base_model = VGG16(
+    input_shape=IMG_SIZE + (3,), # (128, 128, 3)
+    include_top=False,           # Son katmanı (karar vericiyi) almıyoruz
+    weights='imagenet'           # ImageNet ağırlıklarını kullan
+)
+
+# Tabanı donduruyoruz (Bu kısmı eğitmeyeceğiz, hazır bilgi kullanacağız)
+base_model.trainable = False
+
+# Kendi modelimizi inşa ediyoruz
+model = tf.keras.Sequential([
+    # Giriş katmanında pikselleri 0-255 arasından 0-1 arasına sıkıştırıyoruz
+    layers.Rescaling(1./255, input_shape=IMG_SIZE + (3,)),
+    
+    base_model,                 # Hazır Beyin (VGG16)
+    layers.Flatten(),           # Veriyi düzleştir
+    layers.Dense(256, activation='relu'), # Öğrenen katman
+    layers.Dropout(0.5),        # Ezberlemeyi önleyen katman
+    layers.Dense(1, activation='sigmoid') # ÇIKIŞ: 0 veya 1 kararı
+])
+
+# --- 4. MODELİ DERLEME ---
+model.compile(
+    optimizer='adam',
+    loss='binary_crossentropy',
+    metrics=['binary_accuracy'],
+)
+
+# --- 5. EĞİTİMİ BAŞLAT ---
+print("\n🏋️ Eğitim başlıyor! (Mac performansına göre biraz sürebilir)...")
+
+history = model.fit(
+    train_ds,
+    validation_data=val_ds,
+    epochs=10,  # 10 Tur dönecek
+    verbose=1
+)
+
+print("\n📊 Grafikler çiziliyor...")
+
+history_frame = pd.DataFrame(history.history)
+
+plt.figure(figsize=(12, 6))
+
+plt.subplot(1, 2, 1)
+plt.plot(history_frame['loss'], label='Eğitim Kaybı')
+plt.plot(history_frame['val_loss'], label='Doğrulama Kaybı')
+plt.title('Kayıp (Loss) Grafiği')
+plt.xlabel('Epoch (Tur)')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(history_frame['binary_accuracy'], label='Eğitim Doğruluğu')
+plt.plot(history_frame['val_binary_accuracy'], label='Doğrulama Doğruluğu')
+plt.title('Doğruluk (Accuracy) Grafiği')
+plt.xlabel('Epoch (Tur)')
+plt.legend()
+
+plt.show()
+
+print("✅ İşlem Tamamlandı!")
