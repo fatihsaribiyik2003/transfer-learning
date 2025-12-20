@@ -1,0 +1,17 @@
+{
+    "model_name": "optimized_car_truck_classifier_v2",
+    "date": "2025-12-18 14:24",
+    "final_accuracy": 0.8863591551780701,
+    "class_names": [
+        "Car",
+        "Truck"
+    ],
+    "train_dist": {
+        "Car": 2961,
+        "Truck": 2156
+    },
+    "val_dist": {
+        "Car": 2922,
+        "Truck": 2129
+    }
+}
